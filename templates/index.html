@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Factify</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+      textarea:focus {
+        outline: none;
+      }
+
+      .loader {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #ffffff;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+
+  <body class="bg-[#F9FAFB] min-h-screen font-sans text-gray-800">
+    <!-- ================= HEADER ================= -->
+    <header class="bg-white border-b border-gray-200 py-4 px-10">
+      <div class="flex items-center space-x-3">
+        <div class="bg-blue-600 p-2 rounded-lg">
+          <svg
+            class="w-5 h-5 text-white"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="3"
+              d="M5 13l4 4L19 7"
+            ></path>
+          </svg>
+        </div>
+
+        <div>
+          <h1 class="text-blue-600 font-bold text-xl">Factify</h1>
+          <p class="text-gray-400 text-[10px] italic uppercase tracking-wider">
+            News Verification
+          </p>
+        </div>
+      </div>
+    </header>
+
+    <!-- ================= MAIN ================= -->
+    <main class="max-w-5xl mx-auto px-6 py-16">
+      <h2 class="text-4xl font-bold mb-10">Cek Fakta Berita</h2>
+
+      <!-- ================= INPUT ================= -->
+      <div class="mb-6">
+        <h3 class="text-xl font-semibold mb-1">
+          Paste artikel berita untuk diverifikasi
+        </h3>
+
+        <p class="text-gray-500 text-sm">
+          Masukkan teks berita lengkap atau ringkasan
+        </p>
+      </div>
+
+      <div class="relative mb-6">
+        <textarea
+          class="w-full h-60 p-6 bg-[#F3F4F6] border border-gray-200 rounded-2xl text-gray-700 placeholder-gray-400 shadow-sm resize-none text-lg"
+          placeholder="Masukkan teks berita di sini..."
+        ></textarea>
+      </div>
+
+      <!-- ================= BUTTON ================= -->
+      <button
+        class="w-full bg-[#3465E4] hover:bg-blue-500 text-white font-semibold py-4 rounded-xl flex items-center justify-center transition duration-300 shadow-sm"
+      >
+        <span>Verifikasi Berita</span>
+      </button>
+
+      <!-- ========================================================= -->
+      <!-- ================= HASIL VERIFIKASI ====================== -->
+      <!-- ========================================================= -->
+
+      <section id="containerHasil" class="hidden mt-16 pb-20">
+        <h3 class="text-xl font-bold mb-6">Hasil Verifikasi:</h3>
+
+        <!-- STATUS -->
+        <div
+          id="boxStatus"
+          class="p-5 rounded-2xl font-bold text-xl shadow-md flex gap-4 items-center"
+        ></div>
+
+        <!-- BOX HASIL -->
+        <div
+          class="bg-white border border-gray-200 p-8 rounded-2xl shadow-sm mt-6"
+        >
+          <h4
+            id="judulAnalisis"
+            class="text-lg font-bold mb-4 border-b border-gray-100 pb-2"
+          >
+            Analisis & Bukti
+          </h4>
+
+          <p
+            id="teksHasil"
+            class="text-gray-600 leading-relaxed italic mb-8"
+          ></p>
+
+          <!-- REFERENSI -->
+          <div>
+            <h5
+              class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4"
+            >
+              Referensi Sumber Terkait:
+            </h5>
+
+            <ul id="listSumber" class="space-y-4"></ul>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      function escapeHtml(text) {
+        return text
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      async function cekBerita() {
+        const berita = document.querySelector("textarea").value;
+
+        const btn = document.querySelector("button");
+
+        const containerHasil = document.getElementById("containerHasil");
+
+        if (!berita.trim()) {
+          alert("Masukkan berita terlebih dahulu.");
+          return;
+        }
+
+        // ===============================
+        // LOADING BUTTON
+        // ===============================
+
+        btn.disabled = true;
+
+        btn.innerHTML = `
+          <div class="loader mr-3"></div>
+          Sedang Memverifikasi...
+        `;
+
+        containerHasil.classList.add("hidden");
+
+        try {
+          // =========================================
+          // FETCH API FASTAPI
+          // =========================================
+
+          const formData = new FormData();
+
+          formData.append("berita", berita);
+
+          const response = await fetch("/verifikasi", {
+            method: "POST",
+            body: formData,
+          });
+
+          const result = await response.json();
+
+          // =========================================
+          // HANDLE ERROR
+          // =========================================
+
+          if (!response.ok) {
+            alert(result.detail || result.error || "Terjadi kesalahan.");
+            return;
+          }
+
+          if (result.error) {
+            alert(result.error);
+            return;
+          }
+
+          // =========================================
+          // STATUS
+          // =========================================
+
+          const statusText = String(result.status || "").toLowerCase();
+          let status = "valid";
+
+          if (statusText.includes("hoax") || statusText.includes("hoaks")) {
+            status = "hoaks";
+          } else if (
+            statusText.includes("tidak terverifikasi") ||
+            statusText.includes("belum konklusif")
+          ) {
+            status = "netral";
+          }
+
+          // =========================================
+          // ELEMENT
+          // =========================================
+
+          const boxStatus = document.getElementById("boxStatus");
+
+          const judulAnalisis = document.getElementById("judulAnalisis");
+
+          const teksHasil = document.getElementById("teksHasil");
+
+          const listSumber = document.getElementById("listSumber");
+
+          // =========================================
+          // TAMPILKAN REASONING
+          // =========================================
+
+          teksHasil.innerText =
+            result.reason || result.reasoning || "Tidak ada analisis.";
+
+          // =========================================
+          // STATUS HOAKS / VALID
+          // =========================================
+
+          if (status === "hoaks") {
+            boxStatus.className =
+              "p-5 rounded-2xl font-bold flex gap-4 items-center text-red-600 text-xl shadow-md bg-red-100 border border-red-300";
+
+            judulAnalisis.className =
+              "text-lg font-bold mb-4 border-b border-gray-100 pb-2 text-red-500";
+
+            boxStatus.innerHTML = `
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 28 28"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M14 23.625C16.5527 23.625 19.0009 22.6109 20.8059 20.8059C22.6109 19.0009 23.625 16.5527 23.625 14C23.625 11.4473 22.6109 8.99914 20.8059 7.1941C19.0009 5.38906 16.5527 4.375 14 4.375C11.4473 4.375 8.99914 5.38906 7.1941 7.1941C5.38906 8.99914 4.375 11.4473 4.375 14C4.375 16.5527 5.38906 19.0009 7.1941 20.8059C8.99914 22.6109 11.4473 23.625 14 23.625Z"
+                  fill="#EF4444"
+                />
+              </svg>
+
+              BERITA TERINDIKASI HOAKS
+            `;
+          } else if (status === "netral") {
+            boxStatus.className =
+              "p-5 rounded-2xl font-bold flex gap-4 items-center text-gray-700 text-xl shadow-md bg-gray-100 border border-gray-300";
+
+            judulAnalisis.className =
+              "text-lg font-bold mb-4 border-b border-gray-100 pb-2 text-gray-600";
+
+            boxStatus.innerHTML = `
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 28 28"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M14 23.625C16.5527 23.625 19.0009 22.6109 20.8059 20.8059C22.6109 19.0009 23.625 16.5527 23.625 14C23.625 11.4473 22.6109 8.99914 20.8059 7.1941C19.0009 5.38906 16.5527 4.375 14 4.375C11.4473 4.375 8.99914 5.38906 7.1941 7.1941C5.38906 8.99914 4.375 11.4473 4.375 14C4.375 16.5527 5.38906 19.0009 7.1941 20.8059C8.99914 22.6109 11.4473 23.625 14 23.625Z"
+                  fill="#9CA3AF"
+                />
+              </svg>
+
+              ${statusText.includes("belum konklusif") ? "BELUM KONKLUSIF" : "TIDAK TERVERIFIKASI"}
+            `;
+          } else {
+            boxStatus.className =
+              "p-5 rounded-2xl font-bold flex gap-4 items-center text-green-700 text-xl shadow-md bg-green-100 border border-green-300";
+
+            judulAnalisis.className =
+              "text-lg font-bold mb-4 border-b border-gray-100 pb-2 text-green-600";
+
+            boxStatus.innerHTML = `
+              <svg
+                width="28"
+                height="30"
+                viewBox="0 0 28 30"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M10.5 16L12.8333 18.3333L17.5 13.6667"
+                  stroke="#13C061"
+                  stroke-width="2.91667"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+
+              TERINDIKASI VALID
+            `;
+          }
+
+          // =========================================
+          // RENDER SUMBER
+          // =========================================
+
+          listSumber.innerHTML = "";
+
+          (result.sources || []).forEach((s) => {
+            const sumber =
+              typeof s === "string"
+                ? { link: s, judul: s, status: result.status || "" }
+                : {
+                    link: s.link || s.url || "#",
+                    judul: s.judul || s.title || s.link || s.url || "Sumber",
+                    status: s.status || result.status || "",
+                  };
+
+            const warna =
+              String(sumber.status).toLowerCase().includes("hoax") ||
+              String(sumber.status).toLowerCase().includes("hoaks")
+                ? "red"
+                : String(sumber.status)
+                      .toLowerCase()
+                      .includes("belum konklusif") ||
+                    String(sumber.status)
+                      .toLowerCase()
+                      .includes("tidak terverifikasi")
+                  ? "gray"
+                  : "green";
+
+            const li = document.createElement("li");
+
+            li.innerHTML = `
+              <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+
+                <a
+                  href="${sumber.link}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center text-${warna}-500 hover:text-${warna}-700 font-bold mb-2"
+                >
+                  <span class="mr-2">🔗</span>
+                  ${escapeHtml(sumber.judul)}
+                </a>
+
+                <p
+                  class="text-sm font-semibold ${
+                    warna === "red"
+                      ? "text-red-500"
+                      : warna === "gray"
+                        ? "text-gray-500"
+                        : "text-green-600"
+                  }"
+                >
+                  ${escapeHtml(sumber.status || result.status || "")}
+                </p>
+
+              </div>
+            `;
+
+            listSumber.appendChild(li);
+          });
+
+          // =========================================
+          // TAMPILKAN HASIL
+          // =========================================
+
+          containerHasil.classList.remove("hidden");
+
+          containerHasil.scrollIntoView({
+            behavior: "smooth",
+          });
+        } catch (err) {
+          console.error(err);
+
+          alert("Terjadi kesalahan.");
+        } finally {
+          // RESET BUTTON
+
+          btn.disabled = false;
+
+          btn.innerHTML = `
+            <span>Verifikasi Berita</span>
+          `;
+        }
+      }
+
+      // HUBUNGKAN BUTTON
+
+      document.querySelector("button").addEventListener("click", cekBerita);
+    </script>
+  </body>
+</html>
