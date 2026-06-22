@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import statistics
 
-from llama_main import verify_news
+from main import verify_news
 
 # ===========================================
 # PENGATURAN
@@ -91,7 +91,7 @@ for i, row in dataset.iterrows():
 
     try:
 
-        result = verify_news(berita, generate_reason=False)
+        result = verify_news(berita,)
 
         end = time.perf_counter()
 
