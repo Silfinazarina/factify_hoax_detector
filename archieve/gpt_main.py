@@ -6,7 +6,7 @@ import requests
 import uvicorn
 from fastapi import FastAPI, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from groq import Groq
+from groq import Groq 
 from newspaper import Article, Config
 from pygooglenews import GoogleNews
 from googlenewsdecoder import gnewsdecoder
@@ -17,8 +17,10 @@ templates = Jinja2Templates(directory="templates")
 
 load_dotenv()
 
+MODEL_NAME="openai/gpt-oss-120b"
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 TURNBACKHOAX_API_KEY = os.getenv("TURNBACKHOAX_API_KEY")
+BASE_URL = "https://yudistira.turnbackhoax.id/Antihoax"
 
 client = Groq(
     api_key=GROQ_API_KEY
@@ -38,12 +40,19 @@ app.add_middleware(
 )
 
 
+# llm response
 def ask_llm(prompt: str):
+
     response = client.chat.completions.create(
         model=MODEL_NAME,
         temperature=0,
         top_p=0.1,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
     )
 
     return response.choices[0].message.content.strip()
@@ -62,7 +71,7 @@ def extract_claim(teks: str):
 Anda adalah sistem ekstraksi klaim.
 
 Tugas:
-Tuliskan kembali klaim utama dari teks berikut dengan sangat singkat.
+Tuliskan kembali klaim utama dari teks berikut dengan sangat singkat tanpa kalimat pengantar
 
 Aturan:
 - Jangan menambah kalimat lain selain klaim inti.
@@ -87,21 +96,22 @@ Teks:
 
 def generate_query(claim: str):
     prompt = f"""
-Buat keyword pencarian berita dari klaim berikut.
+Buat keyword pencarian berita singkat dari klaim berikut.
 
 Aturan:
-- ambil kata paling umum dan penting
+- ambil kata paling penting
 - pertahankan nama, lokasi, atau objek unik jika ada
 - jangan tambah informasi baru
 - jangan ubah makna
 - output hanya 1 keyword singkat
+- jangan terlalu umum
 
 Klaim:
 {claim}
 """
 
     query = ask_llm(prompt)
-    return re.sub(r"[^\w\s]", "", query)
+    return re.sub(r"[^\w\s]", "", query).lower()
 
 
 def relevance_check(claim: str, title: str):
@@ -116,20 +126,23 @@ Judul Artikel:
 {title}
 
 Tugas:
-Tentukan apakah judul artikel membahas peristiwa atau topik yang sama dengan klaim.
+Tentukan apakah judul berita membahas peristiwa yang sama dengan klaim.
 
-Tidak harus identik kata per kata.
+Aturan:
 
-Jika subjek, objek, lokasi, atau peristiwa utama sama, jawab YA.
+- subjek, objek dan aksi atau kejadian utama harus sama.
+- Jangan hanya karena memiliki nama orang atau topik yang sama.
+- Jika hanya membahas topik yang sama tetapi peristiwanya berbeda, jawab tidak.
+- Jika judul mendukung, membantah, atau mengklarifikasi klaim yang sama, jawab ya.
 
-Jawab hanya:
-ya
-atau
-tidak
+Jawab hanya satu kata
 
 """
+    
+    hasil = ask_llm(prompt)
+    hasil = re.sub(r"[^\w\s]", "", hasil).lower().strip()
 
-    return ask_llm(prompt)
+    return hasil
 
 
 def evaluate_candidates(claim, candidates):
@@ -175,14 +188,14 @@ def aggregate_turnbackhoax(relevant_articles):
 
         status = str(article.get("status", "")).strip().lower()
 
-        if status in {"1", "benar", "valid", "true", "iya"}:
+        if status in {"1", "benar", "valid", "true", "iya", "Benar"}:
             valid += 1
 
-        elif status in {"2", "salah", "hoax", "hoaks", "false", "tidak"}:
+        elif status in {"2", "salah", "hoax", "hoaks", "false", "tidak", "Salah"}:
             hoax += 1
 
     if valid == 0 and hoax == 0:
-        return "Tidak Terverifikasi"
+        return "Tidak Diketahui"
 
     elif valid > hoax:
         return "Valid"
@@ -190,8 +203,6 @@ def aggregate_turnbackhoax(relevant_articles):
     elif hoax > valid:
         return "Hoax"
 
-    else:
-        return "Belum Konklusif"
 
 
 def generate_reason_layer1(claim: str, articles: list, status: str):
@@ -238,7 +249,7 @@ Output adalah alasan verifikasi.
 def generate_verification_result(claim, relevant_articles):
     if not relevant_articles:
         return {
-            "status": "Tidak Terverifikasi",
+            "status": "Tidak Diketahui",
             "reason": "Tidak ditemukan artikel relevan dari TurnBackHoax.",
             "sources": [],
             "layer": "turnbackhoax",
@@ -247,7 +258,10 @@ def generate_verification_result(claim, relevant_articles):
     final_status = aggregate_turnbackhoax(relevant_articles)
     reason = generate_reason_layer1(claim, relevant_articles, final_status)
     sources = [
-        f"https://turnbackhoax.id/articles/{item['id']}" #masih belum fiks untuk URL layer 1 ini yaa
+        {
+            "title": item["title"],
+            "url": f"https://turnbackhoax.id/articles/{item['id']}"
+        }
         for item in relevant_articles
     ]
 
@@ -347,13 +361,12 @@ ATURAN PENTING:
 - Jika berita menyatakan kebalikan dari klaim,
   jawab membantah
 
-mendukung
-atau
-membantah
-
 """
 
-    return ask_llm(prompt)
+    hasil = ask_llm(prompt)
+    hasil = re.sub(r"[^\w\s]", "", hasil).lower().strip()
+
+    return hasil
 
 
 def aggregate_stance(scraped_articles):
@@ -369,19 +382,18 @@ def aggregate_stance(scraped_articles):
             membantah += 1
 
     if mendukung == 0 and membantah == 0:
-        status = "Tidak Terverifikasi"
+        status = "Tidak Diketahui"
     elif mendukung > membantah:
         status = "Valid"
     elif membantah > mendukung:
         status = "Hoax"
-    else:
-        status = "Belum Konklusif"
+   
 
     return {"status": status, "mendukung": mendukung, "membantah": membantah}
 
 
 def generate_reason_layer2(claim: str, articles: list, status: str):
-    if status == "Tidak Terverifikasi":
+    if status == "Tidak Diketahui":
         return (
             "Tidak ditemukan bukti yang cukup untuk memverifikasi klaim. "
             "Sistem tidak menemukan artikel yang relevan atau bukti yang "
@@ -428,28 +440,76 @@ Aturan:
 
 
 def verify_news(berita: str):
+
+    print("Debugging")
+    print("----------------")
+    print("\nInput:")
+    print(berita)
+
     cleaned = preprocessing_berita(berita)
+
+    print("\nTeks Bersih:")
+    print(cleaned)
+
     claim = extract_claim(cleaned)
+
+    print("\nKlaim Inti Berita:")
+    print(claim)
+
     search_keyword = generate_query(claim)
+
+    print("\nKeyword Pencarian:")
+    print(search_keyword)
 
     try:
         candidates = search_turnbackhoax(search_keyword)
     except Exception:
         candidates = []
 
+    print("\nLayer 1 - TurnBackHoax")
+    print("Jumlah kandidat:", len(candidates))
+
     relevant_articles = evaluate_candidates(claim, candidates)
+
+    print("Artikel relevan:", len(relevant_articles))
+
+    for item in relevant_articles:
+        print("-", item["title"])
 
     if relevant_articles:
         result = generate_verification_result(claim, relevant_articles)
         result.update({"claim": claim, "search_keyword": search_keyword})
+
+        print("\nHASIL AKHIR")
+        print("Status :", result["status"])
+        print("Layer  :", "turnbackhoax")
+        print("-------------------------\n")
+
+        print("\nReason :")
+        print(result["reason"])
+
+        print("\nSumber :")
+        for source in result["sources"]:
+            print("-", source)
+            print(" ", source["url"])
+
+        print("-------------------------\n")
+
         return result
+    
+    print("\nLayer 1 tidak menemukan hasil.")
+    print("Melanjutkan ke Google News...")
 
     news_list = search_google_news(claim)
+
+    print("\nGoogle News")
+    print("Jumlah berita:", len(news_list))
+
     relevant_news = evaluate_candidates(claim, news_list)
 
     if not relevant_news:
         return {
-            "status": "Tidak Terverifikasi",
+            "status": "Tidak Diketahui",
             "reason": (
                 "Tidak ditemukan artikel yang relevan untuk memverifikasi klaim. "
                 "Informasi ini belum dapat dipastikan benar maupun salah. "
@@ -464,9 +524,11 @@ def verify_news(berita: str):
 
     scraped_articles = scrape_relevant_articles(relevant_news)
 
+    print("Artikel berhasil discrape:", len(scraped_articles))
+
     if not scraped_articles:
         return {
-            "status": "Tidak Terverifikasi",
+            "status": "Tidak Diketahui",
             "reason": (
                 "Artikel relevan ditemukan, tetapi isi artikel "
                 "tidak berhasil diambil sehingga verifikasi "
@@ -480,14 +542,37 @@ def verify_news(berita: str):
 
     for article in scraped_articles:
         article["stance"] = detect_stance(claim, article["content"])
+        print(article["title"])
+        print("->", article["stance"])
 
     result = aggregate_stance(scraped_articles)
     reason = generate_reason_layer2(claim, scraped_articles, result["status"])
 
+    print("\nHASIL AKHIR")
+    print("Status :", result["status"])
+    print("Layer  :", "google_news")
+    print("-----------------------\n")
+
+    print("\nReason :")
+    print(reason)
+
+    print("\nSumber :")
+    for article in scraped_articles:
+        print("-", article["link"])
+        print(" ", article["url"])
+
+    print("-----------------------\n")
+
     return {
         "status": result["status"],
         "reason": reason,
-        "sources": [article["link"] for article in scraped_articles],
+        "sources": [
+            {
+                "title": article["title"],
+                "url": article["link"]
+            }
+            for article in scraped_articles
+        ],
         "claim": claim,
         "search_keyword": search_keyword,
         "layer": "google_news",
@@ -516,7 +601,7 @@ def verifikasi(berita: str = Form(...)):
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("llama_main:app", host="127.0.0.1", port=8000, reload=True)
 
 
 # masih belum fiks di url source yang ditampilkan di layer 1 ya 

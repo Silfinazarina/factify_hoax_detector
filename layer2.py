@@ -3,35 +3,42 @@ import os
 from pygooglenews import GoogleNews
 from newspaper import Article, Config
 from googlenewsdecoder import gnewsdecoder
-from groq import Groq 
 from dotenv import load_dotenv
-
-MODEL_NAME = "openai/gpt-oss-120b"
+import time
+import ollama
 
 load_dotenv()
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-client = Groq(
-    api_key=GROQ_API_KEY
-)
+MODEL_NAME = "llama3.2:3b"
+TURNBACKHOAX_API_KEY = os.getenv("TURNBACKHOAX_API_KEY")
+BASE_URL = "https://yudistira.turnbackhoax.id/api/antihoax/search"
 
 
 # llm response
 def ask_llm(prompt: str):
 
-    response = client.chat.completions.create(
+    start = time.perf_counter()
+
+    response = ollama.chat(
         model=MODEL_NAME,
-        temperature=0,
-        top_p=0.1,
         messages=[
             {
                 "role": "user",
                 "content": prompt
             }
-        ]
+        ],
+        options={
+            "temperature": 0,
+            # "top_k": 5,
+            # "seed": 42
+        }
     )
 
-    return response.choices[0].message.content.strip()
+    elapsed = time.perf_counter() - start
+
+    print(f"LLM selesai dalam {elapsed:.2f} detik")
+
+    return response["message"]["content"].strip()
 
 
 
@@ -41,7 +48,7 @@ def preprocessing_berita(teks: str):
     clean_text = teks.encode("ascii", "ignore").decode()    # membersihkan karakter yang tidak perlu (emotikon dsb)
     # links = re.findall(r'http[s]?://\S+', clean_text)     # ambil semua link url
     clean_text = re.sub(r'http[s]?://\S+', '',clean_text)   # hapus link yang didapat dari teks
-    clean_text = re.sub(r"[^\w\s]", ' ',clean_text)         # hapus tanda baca berlebih
+    # clean_text = re.sub(r"[^\w\s]", ' ',clean_text)         # hapus tanda baca berlebih
     clean_text = re.sub(r'\s+', ' ',clean_text).strip()     # rapikan spasi berlebih
     print("\nTeks Bersih: ")
     print("-------")
@@ -73,7 +80,7 @@ Aturan:
 - Jika teks sudah berupa klaim, cukup rapikan tata bahasanya.
 
 Output:
-Satu kalimat klaim.
+Satu kalimat klaim tanpa kalimat pengantar
 
 Teks:
 {teks}
@@ -88,6 +95,60 @@ Teks:
     return claim
 
 
+
+# ---------
+def generate_query(claim: str):
+
+    prompt = f"""
+Buat keyword pencarian berita dari klaim berikut.
+
+Aturan:
+- ambil kata paling spesifik dan penting
+- pertahankan nama, lokasi, atau objek unik jika ada
+- jangan tambah informasi baru
+- jangan ubah makna
+- output hanya 1 keyword singkat
+
+Klaim:
+{claim}
+"""
+
+    query = ask_llm(prompt)
+    query = query.replace('"', "").replace('.', "").strip()
+
+    print("\nKeyword pencarian:")
+    print("-------")
+    print(query)
+
+    return query
+
+
+# generate query for serching masih kureng
+# ---------
+# def generate_query(claim: str):
+
+#     prompt = f"""
+# Buat keyword pencarian berita dari klaim berikut.
+
+# Aturan:
+# - ambil kata paling spesifik dan penting
+# - pertahankan nama, lokasi, atau objek unik jika ada
+# - jangan tambah informasi baru
+# - jangan ubah makna
+# - output hanya 1 keyword singkat
+
+# Klaim:
+# {claim}
+# """
+
+#     query = ask_llm(prompt)
+#     query = query.replace('"', "").replace('.', "").strip()
+
+#     print("\nKeyword pencarian:")
+#     print("-------")
+#     print(query)
+
+#     return query
 
 
 def search_google_news(query: str):
@@ -125,37 +186,35 @@ def search_google_news(query: str):
     return news_list
 
 # cek relevansi judul dengan klaim
-def relevance_check(claim1: str, claim2: str):
+def relevance_check(claim: str, title: str):
 
-    claim1 = re.sub(r"[^\w\s]", "", claim1).lower()
-    claim2 = re.sub(r"[^\w\s]", "", claim2).lower()
+    claim = claim.lower().replace('"', "").strip()
+    title = title.lower().replace('"', "").strip()
 
     prompt = f"""
 Klaim:
-{claim1}
+{claim}
 
-Judul Berita:
-{claim2}
+Judul Artikel:
+{title}
 
 Tugas:
-Tentukan apakah judul berita membahas peristiwa yang sama dengan klaim.
+Tentukan apakah judul artikel membahas peristiwa yang sama dengan klaim.
 
-Aturan:
+ATURAN PENTING:
+Tidak harus identik kata per kata.
+Jangan hanya karena memiliki nama orang atau topik yang sama.
+Jika hanya membahas topik yang sama tetapi peristiwanya berbeda, jawab tidak.
+Jika subjek, objek, lokasi, atau peristiwa utama sama, jawab ya
+Jangan menilai benar atau salah klaim.
+Hanya nilai apakah artikel membahas kejadian yang sama.
 
-- Subjek utama harus sama.
-- Objek utama harus sama.
-- Aksi atau kejadian utama harus sama.
-- Jangan hanya karena memiliki nama orang atau topik yang sama.
-- Jika hanya membahas topik yang sama tetapi peristiwanya berbeda, jawab tidak.
-- Jika judul mendukung, membantah, atau mengklarifikasi klaim yang sama, jawab ya.
-
-Jawab hanya:
-ya
-atau
-tidak
+Jawab hanya satu kata "ya" atau "tidak"
 
 """
+
     hasil = ask_llm(prompt)
+    hasil = hasil.replace('"', "").replace('.', "").lower() 
     return hasil
 
 
@@ -265,14 +324,10 @@ ATURAN PENTING:
 - Jika berita menyatakan kebalikan dari klaim,
   jawab membantah
 
-mendukung
-atau
-membantah
-
 """
 
     hasil = ask_llm(prompt)
-
+    hasil = hasil.replace(".","").lower().strip()
     return hasil
 
 
@@ -317,16 +372,20 @@ def aggregate_stance(scraped_articles):
 
 
 
-def generate_reason(
-    claim: str,
-    articles: list,
-    status: str
-):
+def generate_reason(claim: str, articles: list, status: str):
+    if status == "Tidak Diketahui":
+        return (
+            "Tidak ditemukan bukti yang cukup untuk memverifikasi klaim. "
+            "Sistem tidak menemukan artikel yang relevan atau bukti yang "
+            "dapat digunakan untuk mendukung maupun membantah klaim. "
+            "Informasi ini belum dapat dipastikan benar maupun salah. "
+            "Disarankan untuk tidak menyebarkan informasi tersebut "
+            "sebelum tersedia sumber yang kredibel."
+        )
 
     evidence_text = ""
 
     for i, article in enumerate(articles, start=1):
-
         evidence_text += f"""
 Bukti {i}
 
@@ -357,8 +416,7 @@ Aturan:
 - Ringkas dalam satu paragraf.
 """
 
-    reason = ask_llm(prompt)
-    return reason
+    return ask_llm(prompt)
 
 
 
@@ -398,8 +456,11 @@ def generate_verification_result(
 
 if __name__ == "__main__":
 
+    berita = input("Masukkan berita: ")
 
-    claim = "Program Makan Bergizi Gratis Dibatalkan oleh pemerintah dan ditutup selamanya"
+    claim = extract_claim(berita)
+
+    # search_keyword = generate_query(claim)
 
     news_list = search_google_news(claim) # cari sumber berita artikel berdasarkan klaim agar hasiil pencaian tidak terlalu umum
 

@@ -1,0 +1,24 @@
+
+============================================================
+STATISTIK PENGUJIAN
+============================================================
+
+Jumlah Data            : 10
+
+Prediksi Valid         : 1
+Prediksi Hoax          : 7
+Tidak Diketahui        : 2
+
+Layer TurnBackHoax     : 6
+Layer Google News      : 4
+
+Minimum Latency        : 86.488 detik
+Maksimum Latency       : 4600.374 detik
+Rata-rata Latency      : 1536.551 detik
+Median Latency         : 432.562 detik
+Standar Deviasi      : 1730.363 detik
+
+Minimum Latency : 86.488
+Maksimum Latency : 4600.374
+Rata-rata Latency : 1536.551
+Median Latency : 432.562

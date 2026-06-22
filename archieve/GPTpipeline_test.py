@@ -2,7 +2,7 @@ import re
 import os
 from dotenv import load_dotenv
 import requests
-from urllib.parse import quote #encode link sumber
+from urllib.parse import quote #encode link sumber 
 from groq import Groq 
 from pygooglenews import GoogleNews
 from newspaper import Article, Config
@@ -11,8 +11,10 @@ from googlenewsdecoder import gnewsdecoder
 
 load_dotenv()
 
+MODEL_NAME="openai/gpt-oss-120b"
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 TURNBACKHOAX_API_KEY = os.getenv("TURNBACKHOAX_API_KEY")
+BASE_URL = "https://yudistira.turnbackhoax.id/Antihoax"
 
 client = Groq(
     api_key=GROQ_API_KEY
