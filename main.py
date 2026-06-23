@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi import Request
 import time
 import emoji
-from groq import Groq
+# from groq import Groq
 from bs4 import BeautifulSoup
 import trafilatura
 
@@ -22,20 +22,20 @@ templates = Jinja2Templates(directory="templates")
 
 load_dotenv()
 
-# MODEL_NAME="llama3.2:3b"
-# TURNBACKHOAX_API_KEY = os.getenv("TURNBACKHOAX_API_KEY")
-# BASE_URL = "https://yudistira.turnbackhoax.id/api/antihoax/search"
-
-MODEL_NAME="openai/gpt-oss-120b"
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+MODEL_NAME="llama3.2:3b"
 TURNBACKHOAX_API_KEY = os.getenv("TURNBACKHOAX_API_KEY")
 BASE_URL = "https://yudistira.turnbackhoax.id/api/antihoax/search"
 
-client = Groq(
-    api_key=GROQ_API_KEY
-)
+# MODEL_NAME="openai/gpt-oss-120b"
+# GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# TURNBACKHOAX_API_KEY = os.getenv("TURNBACKHOAX_API_KEY")
+# BASE_URL = "https://yudistira.turnbackhoax.id/api/antihoax/search"
 
-API_KEY = TURNBACKHOAX_API_KEY
+# client = Groq(
+#     api_key=GROQ_API_KEY
+# )
+
+# API_KEY = TURNBACKHOAX_API_KEY
 
 
 app = FastAPI(title="News Verification API")
@@ -50,47 +50,47 @@ app.add_middleware(
 
 
 # # llm response
-# def ask_llm(prompt: str):
-
-#     start = time.perf_counter()
-
-#     response = ollama.chat(
-#         model=MODEL_NAME,
-#         messages=[
-#             {
-#                 "role": "user",
-#                 "content": prompt
-#             }
-#         ],
-#         options={
-#             "temperature": 0,
-#             # "top_k": 5,
-#             "seed": 42
-#         }
-#     )
-
-#     elapsed = time.perf_counter() - start
-
-#     print(f"\n----")
-#     print(f"LLM selesai dalam {elapsed:.2f} detik")
-
-#     return response["message"]["content"].strip()
-
 def ask_llm(prompt: str):
 
-    response = client.chat.completions.create(
+    start = time.perf_counter()
+
+    response = ollama.chat(
         model=MODEL_NAME,
-        temperature=0,
-        top_p=0.1,
         messages=[
             {
                 "role": "user",
                 "content": prompt
             }
-        ]
+        ],
+        options={
+            "temperature": 0,
+            # "top_k": 5,
+            "seed": 42
+        }
     )
 
-    return response.choices[0].message.content.strip()
+    elapsed = time.perf_counter() - start
+
+    print(f"\n----")
+    print(f"LLM selesai dalam {elapsed:.2f} detik")
+
+    return response["message"]["content"].strip()
+
+# def ask_llm(prompt: str):
+
+#     response = client.chat.completions.create(
+#         model=MODEL_NAME,
+#         temperature=0,
+#         top_p=0.1,
+#         messages=[
+#             {
+#                 "role": "user",
+#                 "content": prompt
+#             }
+#         ]
+#     )
+
+#     return response.choices[0].message.content.strip()
 
 
 def preprocessing_berita(teks: str):
@@ -151,7 +151,7 @@ Aturan:
 - pertahankan nama, lokasi, atau objek unik jika ada
 - jangan tambah informasi baru
 - jangan ubah makna
-- output hanya 1 keyword singkat
+- output hanya 1 baris keyword singkat
 
 Klaim:
 {claim}
@@ -367,9 +367,9 @@ def generate_verification_result(claim, relevant_articles):
     }
 
 
-def search_google_news(claim: str, start=0, limit=20):
+def search_google_news(keyword: str, start=0, limit=20):
     gn = GoogleNews(lang="id", country="ID")
-    hasil = gn.search(claim)
+    hasil = gn.search(keyword)
     print("Jumlah hasil:", len(hasil["entries"]))
     entries = hasil["entries"][start:start+limit]
 
@@ -654,13 +654,13 @@ def verify_news(berita: str):
 
             return result
         
-            print("\nHasil agregasi Layer 1 masih Tidak Diketahui.")
-            print("Melanjutkan ke Google News...")
+        print("\nHasil agregasi Layer 1 masih Tidak Diketahui.")
+        print("Melanjutkan ke Google News...")
         
-        else: 
-    
-            print("\nLayer 1 tidak menemukan hasil.")
-            print("Melanjutkan ke Google News...")
+    else: 
+
+        print("\nLayer 1 tidak menemukan hasil.")
+        print("Melanjutkan ke Google News...")
 
     print("\nLayer 2 - Google News")
     print("==================================")
@@ -677,7 +677,7 @@ def verify_news(berita: str):
 
         print(f"\nMengambil berita {start + 1}-{start + limit}")
 
-        news_list = search_google_news(claim, start=start, limit=limit)
+        news_list = search_google_news(search_keyword, start=start, limit=limit)
 
         if not news_list:
             print("Tidak ada berita lagi.")

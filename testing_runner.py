@@ -13,7 +13,7 @@ DATASET_PATH = "dataset/csv/dataset_pengujian.csv"
 OUTPUT_PATH = "hasil/hasil_pengujian.csv"
 
 # Jika ingin membatasi jumlah data uji
-MAX_TEST = 10      #none
+MAX_TEST = 50      #none
 
 
 # ===========================================
@@ -91,7 +91,7 @@ for i, row in dataset.iterrows():
 
     try:
 
-        result = verify_news(berita,)
+        result = verify_news(berita)
 
         end = time.perf_counter()
 
