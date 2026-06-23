@@ -367,9 +367,9 @@ def generate_verification_result(claim, relevant_articles):
     }
 
 
-def search_google_news(claim: str, start=0, limit=20):
+def search_google_news(search_keyword: str, start=0, limit=20):
     gn = GoogleNews(lang="id", country="ID")
-    hasil = gn.search(claim)
+    hasil = gn.search(search_keyword)
     print("Jumlah hasil:", len(hasil["entries"]))
     entries = hasil["entries"][start:start+limit]
 
@@ -677,7 +677,7 @@ def verify_news(berita: str):
 
         print(f"\nMengambil berita {start + 1}-{start + limit}")
 
-        news_list = search_google_news(claim, start=start, limit=limit)
+        news_list = search_google_news(search_keyword, start=start, limit=limit)
 
         if not news_list:
             print("Tidak ada berita lagi.")
@@ -718,7 +718,7 @@ def verify_news(berita: str):
             ),
             "sources": [],
             "claim": claim,
-            "search_keyword": claim,
+            "search_keyword": search_keyword,
             "layer": "google_news",
         }
 
@@ -738,7 +738,7 @@ def verify_news(berita: str):
             ),
             "sources": [],
             "claim": claim,
-            "search_keyword": claim,
+            "search_keyword": search_keyword,
             "layer": "google_news",
         }
 
@@ -788,7 +788,7 @@ def verify_news(berita: str):
             for article in scraped_articles
         ],
         "claim": claim,
-        "search_keyword": claim,
+        "search_keyword": search_keyword,
         "layer": "google_news",
         "articles": scraped_articles,
         "counts": {
