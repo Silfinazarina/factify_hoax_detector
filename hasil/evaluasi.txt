@@ -3,21 +3,21 @@
 HASIL EVALUASI
 ============================================================
 
-Jumlah Dataset        : 10
+Jumlah Dataset        : 50
 
-Data Dievaluasi       : 8
+Data Dievaluasi       : 37
 
-Tidak Diketahui       : 2
+Tidak Diketahui       : 13
 
-Accuracy              : 0.7500
-Precision             : 0.7143
+Accuracy              : 0.6216
+Precision             : 0.5882
 Recall                : 1.0000
-F1-Score              : 0.8333
+F1-Score              : 0.7407
 
 ============================================================
 CONFUSION MATRIX
 ============================================================
 
           Pred Valid  Pred Hoax
-GT Valid           1          2
-GT Hoax            0          5
+GT Valid           3         14
+GT Hoax            0         20

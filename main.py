@@ -144,7 +144,7 @@ Teks:
 def generate_keyword(claim: str):
     
     prompt = f"""
-Buat keyword pencarian berita singkat dari klaim berikut.
+Buat keyword pencarian berita dari klaim berikut.
 
 Aturan:
 - ambil kata paling spesifik dan penting
@@ -367,9 +367,9 @@ def generate_verification_result(claim, relevant_articles):
     }
 
 
-def search_google_news(keyword: str, start=0, limit=20):
+def search_google_news(claim: str, start=0, limit=20):
     gn = GoogleNews(lang="id", country="ID")
-    hasil = gn.search(keyword)
+    hasil = gn.search(claim)
     print("Jumlah hasil:", len(hasil["entries"]))
     entries = hasil["entries"][start:start+limit]
 
@@ -677,7 +677,7 @@ def verify_news(berita: str):
 
         print(f"\nMengambil berita {start + 1}-{start + limit}")
 
-        news_list = search_google_news(search_keyword, start=start, limit=limit)
+        news_list = search_google_news(claim, start=start, limit=limit)
 
         if not news_list:
             print("Tidak ada berita lagi.")
@@ -718,7 +718,7 @@ def verify_news(berita: str):
             ),
             "sources": [],
             "claim": claim,
-            "search_keyword": search_keyword,
+            "search_keyword": claim,
             "layer": "google_news",
         }
 
@@ -738,7 +738,7 @@ def verify_news(berita: str):
             ),
             "sources": [],
             "claim": claim,
-            "search_keyword": search_keyword,
+            "search_keyword": claim,
             "layer": "google_news",
         }
 
@@ -788,7 +788,7 @@ def verify_news(berita: str):
             for article in scraped_articles
         ],
         "claim": claim,
-        "search_keyword": search_keyword,
+        "search_keyword": claim,
         "layer": "google_news",
         "articles": scraped_articles,
         "counts": {
@@ -817,7 +817,3 @@ def verifikasi(berita: str = Form(...)):
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
 
-
-# masih belum fiks di url source yang ditampilkan di layer 1 ya 
-# parameter berita yang diambil masih belum difiks kan 
-# cek semua kondisi lagi 
